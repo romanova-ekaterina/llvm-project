@@ -18,6 +18,8 @@
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/CodeGen/CommandFlags.h"
 #include "llvm/IR/DiagnosticPrinter.h"
+#include "llvm/DTLTO/Config.h"
+#include "llvm/DTLTO/CodeGen.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Remarks/HotnessThresholdParser.h"
@@ -51,7 +53,7 @@ static cl::list<std::string> InputFilenames(cl::Positional, cl::OneOrMore,
 
 static cl::opt<std::string> OutputFilename("o", cl::Required,
                                            cl::desc("Output filename"),
-                                           cl::value_desc("filename"));
+                                               cl::value_desc("filename"));
 
 static cl::opt<std::string> CacheDir("cache-dir", cl::desc("Cache Directory"),
                                      cl::value_desc("directory"));
@@ -96,6 +98,10 @@ static cl::opt<bool>
                                 "InProcessThinLTO. Has no effect unless "
                                 "specified with -thinlto-emit-indexes or "
                                 "-thinlto-distributed-indexes"));
+
+static cl::opt<std::string> ThinLTODistribute(
+    "thinlto-distribute",
+    cl::desc("'Specify the distributed build system kind for DTLTO"));
 
 // Default to using all available threads in the system, but using only one
 // thread per core (no SMT).
@@ -244,6 +250,11 @@ static int run(int argc, char **argv) {
   // sake we disable the "PreserveInputDbgFormat" flag to enforce a single debug
   // info format.
   PreserveInputDbgFormat = cl::boolOrDefault::BOU_FALSE;
+
+  dtlto::ConfigTy dtltoCfg;
+  dtltoCfg.DbsKind = ThinLTODistribute;
+  dtltoCfg.Argv0 = argv[0];
+  dtltoCfg.DisableTempFilesRemoval = true;
 
   // FIXME: Workaround PR30396 which means that a symbol can appear
   // more than once if it is defined in module-level assembly and
@@ -422,7 +433,10 @@ static int run(int argc, char **argv) {
       continue;
 
     MBs.push_back(std::move(MB));
-    check(Lto.add(std::move(Input), Res), F);
+
+    if(!ThinLTODistribute.empty())
+      dtltoCfg.addInput(Input.get());
+    check(Lto.add(std::move(Input), Res, true), F);
   }
 
   if (!CommandLineResolutions.empty()) {
@@ -456,7 +470,12 @@ static int run(int argc, char **argv) {
     Cache = check(localCache("ThinLTO", "Thin", CacheDir, AddBuffer),
                   "failed to create cache");
 
-  check(Lto.run(AddStream, Cache), "LTO::run failed");
+  if (ThinLTODistribute.empty())
+    check(Lto.run(AddStream, Cache), "LTO::run failed");
+  else {
+    check(dtlto::codeGenImpl(dtltoCfg, Lto, AddStream, AddBuffer),
+          "DTLTO::codegen failed");
+  }
   return static_cast<int>(HasErrors);
 }
 

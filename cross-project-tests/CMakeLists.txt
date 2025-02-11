@@ -22,6 +22,7 @@ set(CROSS_PROJECT_TEST_DEPS
   llvm-dwarfdump
   llvm-config
   llvm-objdump
+  llvm-profdata
   split-file
   not
   )
@@ -61,6 +62,18 @@ if ("lld" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND CROSS_PROJECT_TEST_DEPS lld)
 endif()
 
+if ("llvm-ar" IN_LIST LLVM_ENABLE_PROJECTS)
+  list(APPEND CROSS_PROJECT_TEST_DEPS llvm-ar)
+endif()
+
+if ("llvm-lto2" IN_LIST LLVM_ENABLE_PROJECTS)
+  list(APPEND CROSS_PROJECT_TEST_DEPS llvm-lto2)
+endif()
+
+if ("opt" IN_LIST LLVM_ENABLE_PROJECTS)
+  list(APPEND CROSS_PROJECT_TEST_DEPS opt)
+endif()
+
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
@@ -92,6 +105,13 @@ add_lit_testsuite(check-cross-amdgpu "Running AMDGPU cross-project tests"
   ${CMAKE_CURRENT_BINARY_DIR}/amdgpu
   EXCLUDE_FROM_CHECK_ALL
   DEPENDS clang
+  )
+
+# DTLTO tests.
+add_lit_testsuite(check-cross-dtlto "Running DTLTO cross-project tests"
+  ${CMAKE_CURRENT_BINARY_DIR}/dtlto
+  EXCLUDE_FROM_CHECK_ALL
+  DEPENDS ${CROSS_PROJECT_TEST_DEPS}
   )
 
 # Add check-cross-project-* targets.

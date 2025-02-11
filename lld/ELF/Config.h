@@ -19,6 +19,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/DTLTO/Config.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/CachePruning.h"
 #include "llvm/Support/CodeGen.h"
@@ -568,6 +569,7 @@ struct Ctx : CommonLinkerContext {
   LinkerDriver driver;
   LinkerScript *script;
   std::unique_ptr<TargetInfo> target;
+  dtlto::ConfigTy dtltoCfg;
 
   // These variables are initialized by Writer and should not be used before
   // Writer is initialized.

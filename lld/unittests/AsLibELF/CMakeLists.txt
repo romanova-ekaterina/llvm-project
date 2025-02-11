@@ -11,4 +11,5 @@ target_link_libraries(LLDAsLibELFTests
   PRIVATE
   lldCommon
   lldELF
+  LLVMDTLTO
 )
