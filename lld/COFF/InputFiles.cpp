@@ -1333,7 +1333,10 @@ BitcodeFile *BitcodeFile::create(COFFLinkerContext &ctx, MemoryBufferRef mb,
                                                sys::path::filename(path) +
                                                utostr(offsetInArchive)));
 
-  std::unique_ptr<lto::InputFile> obj = check(lto::InputFile::create(mbref));
+lto::InputFile::InputFileType InputType =
+      archiveName.empty() ? lto::InputFile::InputFileType::REGULAR_FILE
+                          : lto::InputFile::InputFileType::SOLID_ARCHIVE_MEMBER;
+  std::unique_ptr<lto::InputFile> obj = check(lto::InputFile::create(mbref, InputType));
   return make<BitcodeFile>(ctx.getSymtab(getMachineType(obj.get())), mb, obj,
                            lazy);
 }

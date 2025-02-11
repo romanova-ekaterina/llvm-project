@@ -1,0 +1,57 @@
+DTLTOCodegen.cpp
+
+DtltoConfigTy::addInput()
+
+  // TODO: If the number of archive members is large, we should consider to use
+  // the threads pool to archive a better performance.
+
+  // TODO: Avoid saving the same archive member multiple times.
+  // TODO: Use the memory mapped files to achieve a better performance when
+  // transferring the input files to the distributed system.
+
+  // The archive member will be saved into the current working directory.
+  // Alternatively, we could save it into a temporary directory.
+
+llvm::Error initBitcodeModulesMap()
+
+  // TODO: We need to distinguish between the thin archive members and the
+  // regular archive members.
+
+llvm::Error postCodegen()
+
+  // Load the native object files into memory buffers. If the native object
+  // file does not exist or cannot be loaded, return an error.
+  // TODO: Add a check for zero-sized native object files.
+  // TODO: Add a check for a native object file magic number.
+  // TODO: Check that an output file has native object file format.
+  // TODO: Check that an output native object file code section is not empty.
+  // TODO: If the number of native object files is too large, consider using a
+  // thread pool for better performance.
+
+llvm::Error performDtltoCodeGen()
+
+  // TODO: Lets assume that we have one or more huge bitcode files and we have a
+  // distributed build system that has plenty of available servers to perform
+  // code generation. It would be advantageous to split these huge BC file into
+  // several smaller bitcode files and distribute them to the available servers.
+  // This way we can achieve a significant performance improvement. E.g., we have
+  // a huge BC input file that is 10MB in size. We can split it into 10 smaller
+  // BC files, each 1 MB in size, and distribute them to 10 available remote
+  // servers. This way we can achieve a 10x performance improvement.
+  //
+  // TODO: Lets assume that we have a big number of very small bitcode files and
+  // we have a distributed build system that has a limited number of available
+  // servers to perform code generation. It would be advantageous to group the
+  // small BC files into several bigger files and then distribute bigger ones
+  // to the remote servers. This way we can achieve a performance improvement
+  // because we can reduce the overhead of transferring the small files into
+  // the remote servers. E.g., we have 1000 small BC files that are 1 KB in
+  // size. Each file requres 1 second to transfer to the remote server and 0.1
+  // second to compile. We can group these files into 10 bigger files, each 100
+  // kilobytes in size, and distribute bigger files to 10 available remote
+  // servers. This way we can achieve a 10x performance improvement.
+
+void removeTempFiles()
+
+  // TODO: If the number of files for removal is large, we should consider to
+  // use the threads pool to remove files to achieve better performance.

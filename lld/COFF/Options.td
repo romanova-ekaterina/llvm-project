@@ -270,6 +270,11 @@ def thinlto_object_suffix_replace : P<
 def thinlto_prefix_replace: P<
     "thinlto-prefix-replace",
     "'old;new' replace old prefix with new prefix in ThinLTO outputs">;
+
+def thinlto_distribute_eq: Joined<["--"], "thinlto-distribute=">,
+    HelpText<"DBS kind [local, sndbs, icecream, distcc, fastbuild, goma, "
+             "make, ninja, incredibuild]">;
+
 def lto_obj_path : P<
     "lto-obj-path",
     "output native object for merged LTO unit to this path">;

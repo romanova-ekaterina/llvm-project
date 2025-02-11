@@ -1725,7 +1725,10 @@ BitcodeFile::BitcodeFile(Ctx &ctx, MemoryBufferRef mb, StringRef archiveName,
                                  " at " + utostr(offsetInArchive) + ")");
   MemoryBufferRef mbref(mb.getBuffer(), name);
 
-  obj = CHECK2(lto::InputFile::create(mbref), this);
+  lto::InputFile::InputFileType InputType =
+      archiveName.empty() ? lto::InputFile::InputFileType::REGULAR_FILE
+                          : lto::InputFile::InputFileType::SOLID_ARCHIVE_MEMBER;
+  obj = CHECK2(lto::InputFile::create(mbref, InputType), this);
 
   Triple t(obj->getTargetTriple());
   ekind = getBitcodeELFKind(t);

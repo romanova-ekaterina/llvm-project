@@ -280,6 +280,19 @@ struct Config {
   Error addSaveTemps(std::string OutputFileName,
                      bool UseInputModulePath = false,
                      const DenseSet<StringRef> &SaveTempsArgs = {});
+
+  /// This type defines the callback to obtain a file object that is generated
+  /// on the fly.
+  using GetPWriteStreamFn = std::function<std::unique_ptr<raw_pwrite_stream>(
+      unsigned Task, StringRef FileName)>;
+  GetPWriteStreamFn GetSummaryIndexStreamFunc = nullptr;
+
+  /// This type defines the function to obtain a reference to a vector of
+  /// strings.
+  using GetVectorOfStringsRefFn =
+      std::function<std::reference_wrapper<std::vector<std::string>>(
+          unsigned Task)>;
+  GetVectorOfStringsRefFn GetImportsListRefFunc = nullptr;
 };
 
 struct LTOLLVMDiagnosticHandler : public DiagnosticHandler {

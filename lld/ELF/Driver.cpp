@@ -129,6 +129,9 @@ bool link(ArrayRef<const char *> args, llvm::raw_ostream &stdoutOS,
       "too many errors emitted, stopping now (use "
       "--error-limit=0 to see all errors)";
 
+  ctx.dtltoCfg.DiagHandler = diagnosticHandler;
+  ctx.dtltoCfg.Argv0 = args[0];
+
   LinkerScript script(ctx);
   ctx.script = &script;
   ctx.symAux.emplace_back();
@@ -1526,6 +1529,9 @@ static void readConfigs(Ctx &ctx, opt::InputArgList &args) {
   }
   ctx.arg.thinLTOModulesToCompile =
       args::getStrings(args, OPT_thinlto_single_module_eq);
+
+  ctx.dtltoCfg.DbsKind = args.getLastArgValue(OPT_thinlto_distribute_eq);
+
   ctx.arg.timeTraceEnabled =
       args.hasArg(OPT_time_trace_eq) && !ctx.e.disableOutput;
   ctx.arg.timeTraceGranularity =

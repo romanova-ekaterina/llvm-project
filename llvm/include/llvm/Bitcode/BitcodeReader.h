@@ -135,6 +135,7 @@ struct ParserCallbacks {
 
     StringRef getModuleIdentifier() const { return ModuleIdentifier; }
 
+    void setModuleIdentifier(llvm::StringRef ModId) { ModuleIdentifier = ModId; } // DTLTO
     /// Read the bitcode module and prepare for lazy deserialization of function
     /// bodies. If ShouldLazyLoadMetadata is true, lazily load metadata as well.
     /// If IsImporting is true, this module is being parsed for ThinLTO

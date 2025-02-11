@@ -115,6 +115,11 @@ struct SymbolResolution;
 class InputFile {
 public:
   struct Symbol;
+  enum InputFileType {
+    REGULAR_FILE,
+    SOLID_ARCHIVE_MEMBER,
+    THIN_ARCHIVE_MEMBER
+  };
 
 private:
   // FIXME: Remove LTO class friendship once we have bitcode symbol tables.
@@ -132,11 +137,16 @@ private:
   std::vector<StringRef> DependentLibraries;
   std::vector<std::pair<StringRef, Comdat::SelectionKind>> ComdatTable;
 
+  MemoryBufferRef MbRef;
+  InputFileType FileType;
+
 public:
   ~InputFile();
 
   /// Create an InputFile.
-  static Expected<std::unique_ptr<InputFile>> create(MemoryBufferRef Object);
+  static Expected<std::unique_ptr<InputFile>>
+  create(MemoryBufferRef Object,
+         InputFileType InputType = InputFileType::REGULAR_FILE);
 
   /// The purpose of this struct is to only expose the symbol information that
   /// an LTO client should need in order to do symbol resolution.
@@ -189,6 +199,8 @@ public:
 
   // Returns the only BitcodeModule from InputFile.
   BitcodeModule &getSingleBitcodeModule();
+  MemoryBufferRef getFileBuffer() const { return MbRef; }
+  InputFileType getInputFileType() const { return FileType; }
 
 private:
   ArrayRef<Symbol> module_symbols(unsigned I) const {
@@ -240,6 +252,7 @@ public:
 
   // Write sharded indices and (optionally) imports to disk
   Error emitFiles(const FunctionImporter::ImportMapTy &ImportList,
+                  unsigned Task,
                   llvm::StringRef ModulePath,
                   const std::string &NewModulePath) const;
 };
@@ -362,7 +375,8 @@ public:
   /// Add an input file to the LTO link, using the provided symbol resolutions.
   /// The symbol resolutions must appear in the enumeration order given by
   /// InputFile::symbols().
-  Error add(std::unique_ptr<InputFile> Obj, ArrayRef<SymbolResolution> Res);
+  Error add(std::unique_ptr<InputFile> Obj, ArrayRef<SymbolResolution> Res,
+            bool KeepObj = false);
 
   /// Returns an upper bound on the number of tasks that the client may expect.
   /// This may only be called after all IR object files have been added. For a
@@ -539,6 +553,17 @@ private:
 
   // Diagnostic optimization remarks file
   std::unique_ptr<ToolOutputFile> DiagnosticOutputFile;
+
+public:
+  // Returns reference to codegen config.
+  Config &getConfig() { return Conf; }
+  const Config &getConfig() const { return Conf; }
+  // Returns current LTO mode.
+  LTOKind getLTOMode() const { return LTOMode; }
+  // Sets up current LTO mode.
+  void setLTOMode(LTOKind Knd) { LTOMode = Knd; }
+  // Set ThinLTO Backend
+  void setThinBackend(ThinBackend Backend) { ThinLTO.Backend = Backend; }
 };
 
 /// The resolution for a symbol. The linker must provide a SymbolResolution for
