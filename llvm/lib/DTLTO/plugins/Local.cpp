@@ -34,6 +34,9 @@ extern "C" DTLTO_PLUGIN_EXPORT int
 dtltoPerformCodegen(const dtltoConfigTy *Cfg, size_t NodesNum,
                     const dtltoBitcodeNodeTy *const *BitcodeNodes, size_t Argc,
                     const char **Argv) {
+  if (StringRef(Cfg->DbsName).contains("::test"))
+    return dtltoPerformMockCodegen(Cfg, NodesNum, BitcodeNodes);
+
   ErrorOr<std::string> ClangPath = sys::findProgramByName("clang");
   if (!ClangPath) {
     SmallString<64> Err{"Failed to find clang: ",
@@ -46,9 +49,6 @@ dtltoPerformCodegen(const dtltoConfigTy *Cfg, size_t NodesNum,
   CommonArgs[0] = *ClangPath;
   for (size_t I = 0; I != Argc; ++I)
     CommonArgs[I + 1] = Argv[I];
-
-  if (StringRef(Cfg->DbsName).contains("::test"))
-    return dtltoPerformMockCodegen(Cfg, NodesNum, BitcodeNodes);
 
   struct ArgsListTy {
     SmallVector<StringRef> Refs;
