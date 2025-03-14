@@ -93,6 +93,9 @@ bool link(ArrayRef<const char *> args, llvm::raw_ostream &stdoutOS,
   ctx->e.errorLimitExceededMsg = "too many errors emitted, stopping now"
                                  " (use /errorlimit:0 to see all errors)";
 
+  ctx->config.dtltoCfg.DiagHandler = diagnosticHandler;
+  ctx->config.dtltoCfg.Argv0 = args[0];
+
   ctx->driver.linkerMain(args);
 
   return errCount(*ctx) == 0;
@@ -2105,6 +2108,9 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
   config->ltoCSProfileGenerate = args.hasArg(OPT_lto_cs_profile_generate);
   config->ltoCSProfileFile = args.getLastArgValue(OPT_lto_cs_profile_file);
   config->ltoSampleProfileName = args.getLastArgValue(OPT_lto_sample_profile);
+
+  config->dtltoCfg.DbsKind = args.getLastArgValue(OPT_thinlto_distribute_eq);
+
   // Handle miscellaneous boolean flags.
   config->ltoPGOWarnMismatch = args.hasFlag(OPT_lto_pgo_warn_mismatch,
                                             OPT_lto_pgo_warn_mismatch_no, true);

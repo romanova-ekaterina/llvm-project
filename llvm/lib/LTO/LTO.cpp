@@ -551,7 +551,7 @@ void llvm::thinLTOInternalizeAndPromoteInIndex(
 // Requires a destructor for std::vector<InputModule>.
 InputFile::~InputFile() = default;
 
-Expected<std::unique_ptr<InputFile>> InputFile::create(MemoryBufferRef Object) {
+Expected<std::unique_ptr<InputFile>> InputFile::create(MemoryBufferRef Object, InputFileType InputType) {
   std::unique_ptr<InputFile> File(new InputFile);
 
   Expected<IRSymtabFile> FOrErr = readIRSymtab(Object);
@@ -563,6 +563,8 @@ Expected<std::unique_ptr<InputFile>> InputFile::create(MemoryBufferRef Object) {
   File->COFFLinkerOpts = FOrErr->TheReader.getCOFFLinkerOpts();
   File->DependentLibraries = FOrErr->TheReader.getDependentLibraries();
   File->ComdatTable = FOrErr->TheReader.getComdatTable();
+  File->MbRef = Object; // Store memory buffer reference to an object.
+  File->FileType = InputType; // Store a type of the input file.
 
   for (unsigned I = 0; I != FOrErr->Mods.size(); ++I) {
     size_t Begin = File->Symbols.size();
@@ -725,8 +727,8 @@ static void writeToResolutionFile(raw_ostream &OS, InputFile *Input,
   assert(ResI == Res.end());
 }
 
-Error LTO::add(std::unique_ptr<InputFile> Input,
-               ArrayRef<SymbolResolution> Res) {
+Error LTO::add(std::unique_ptr<llvm::lto::InputFile> Input,
+               ArrayRef<SymbolResolution> Res, bool KeepObj) {
   assert(!CalledGetMaxTasks);
 
   if (Conf.ResolutionFile)
@@ -743,6 +745,9 @@ Error LTO::add(std::unique_ptr<InputFile> Input,
   for (unsigned I = 0; I != Input->Mods.size(); ++I)
     if (Error Err = addModule(*Input, I, ResI, Res.end()))
       return Err;
+
+  if (KeepObj)
+    Input.release(); // Keep the InputFile object file in memory.
 
   assert(ResI == Res.end());
   return Error::success();
@@ -1389,7 +1394,8 @@ SmallVector<const char *> LTO::getRuntimeLibcallSymbols(const Triple &TT) {
 }
 
 Error ThinBackendProc::emitFiles(
-    const FunctionImporter::ImportMapTy &ImportList, llvm::StringRef ModulePath,
+    const FunctionImporter::ImportMapTy &ImportList, unsigned Task,
+    llvm::StringRef ModulePath,
     const std::string &NewModulePath) const {
   ModuleToSummariesForIndexTy ModuleToSummariesForIndex;
   GVSummaryPtrSet DeclarationSummaries;
@@ -1399,20 +1405,37 @@ Error ThinBackendProc::emitFiles(
                                    ImportList, ModuleToSummariesForIndex,
                                    DeclarationSummaries);
 
-  raw_fd_ostream OS(NewModulePath + ".thinlto.bc", EC,
-                    sys::fs::OpenFlags::OF_None);
-  if (EC)
-    return createFileError("cannot open " + NewModulePath + ".thinlto.bc", EC);
+  if (Conf.GetSummaryIndexStreamFunc) {
+    std::unique_ptr<raw_pwrite_stream> PS =
+        Conf.GetSummaryIndexStreamFunc(Task, ModulePath);
+    writeIndexToFile(CombinedIndex, *PS, &ModuleToSummariesForIndex,
+                     &DeclarationSummaries);
+  } else {
+    raw_fd_ostream OS(NewModulePath + ".thinlto.bc", EC,
+                      sys::fs::OpenFlags::OF_None);
+    if (EC)
+      return createFileError("cannot open " + NewModulePath + ".thinlto.bc",
+                             EC);
 
-  writeIndexToFile(CombinedIndex, OS, &ModuleToSummariesForIndex,
-                   &DeclarationSummaries);
-
-  if (ShouldEmitImportsFiles) {
-    Error ImportFilesError = EmitImportsFiles(
-        ModulePath, NewModulePath + ".imports", ModuleToSummariesForIndex);
-    if (ImportFilesError)
-      return ImportFilesError;
+    writeIndexToFile(CombinedIndex, OS, &ModuleToSummariesForIndex,
+                     &DeclarationSummaries);
   }
+
+  if (Conf.GetImportsListRefFunc) {
+    std::vector<std::string> &ImportsListRef = Conf.GetImportsListRefFunc(Task);
+    for (const auto &ILI : ModuleToSummariesForIndex) {
+      if (ILI.first != ModulePath)
+        ImportsListRef.push_back(ILI.first);
+    }
+  } else {
+    if (ShouldEmitImportsFiles) {
+      Error ImportFilesError = EmitImportsFiles(
+          ModulePath, NewModulePath + ".imports", ModuleToSummariesForIndex);
+      if (ImportFilesError)
+        return ImportFilesError;
+    }
+  }
+
   return Error::success();
 }
 
@@ -1465,7 +1488,7 @@ public:
     auto ModuleID = BM.getModuleIdentifier();
 
     if (ShouldEmitIndexFiles) {
-      if (auto E = emitFiles(ImportList, ModuleID, ModuleID.str()))
+      if (auto E = emitFiles(ImportList, Task, ModuleID, ModuleID.str()))
         return E;
     }
 
@@ -1581,7 +1604,7 @@ public:
     // FirstRoundThinBackend. However, these files are not generated for
     // SecondRoundThinBackend.
     if (ShouldEmitIndexFiles) {
-      if (auto E = emitFiles(ImportList, ModuleID, ModuleID.str()))
+      if (auto E = emitFiles(ImportList, Task, ModuleID, ModuleID.str()))
         return E;
     }
 
@@ -1791,12 +1814,15 @@ public:
     }
 
     BackendThreadPool.async(
-        [this](const StringRef ModulePath,
+        [this](unsigned Task, const StringRef ModulePath,
                const FunctionImporter::ImportMapTy &ImportList,
+               const FunctionImporter::ExportSetTy &ExportList,
+               const std::map<GlobalValue::GUID, GlobalValue::LinkageTypes>
+                   &ResolvedODR,
                const std::string &OldPrefix, const std::string &NewPrefix) {
           std::string NewModulePath =
               getThinLTOOutputFile(ModulePath, OldPrefix, NewPrefix);
-          auto E = emitFiles(ImportList, ModulePath, NewModulePath);
+          auto E = emitFiles(ImportList, Task, ModulePath, NewModulePath);
           if (E) {
             std::unique_lock<std::mutex> L(ErrMu);
             if (Err)
@@ -1806,7 +1832,8 @@ public:
             return;
           }
         },
-        ModulePath, ImportList, OldPrefix, NewPrefix);
+        Task, ModulePath, ImportList, ExportList, ResolvedODR, OldPrefix,
+        NewPrefix);
 
     if (OnWrite)
       OnWrite(std::string(ModulePath));

@@ -15,6 +15,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/DTLTO/Config.h"
 #include "llvm/Object/COFF.h"
 #include "llvm/Support/CachePruning.h"
 #include "llvm/Support/VirtualFileSystem.h"
@@ -323,6 +324,7 @@ struct Configuration {
   EmitKind emit = EmitKind::Obj;
   bool allowDuplicateWeak = false;
   BuildIDHash buildIDHash = BuildIDHash::None;
+  dtlto::ConfigTy dtltoCfg;
 };
 
 struct COFFSyncStream : SyncStream {

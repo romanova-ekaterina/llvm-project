@@ -8,6 +8,7 @@ set(LLVM_LINK_COMPONENTS
   Core
   Linker
   LTO
+  DTLTO
   MC
   Object
   Passes

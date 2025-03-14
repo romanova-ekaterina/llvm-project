@@ -22,6 +22,7 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/DTLTO/CodeGen.h"
 #include "llvm/LTO/Config.h"
 #include "llvm/LTO/LTO.h"
 #include "llvm/Support/Caching.h"
@@ -277,7 +278,12 @@ void BitcodeCompiler::add(BitcodeFile &f) {
     // their values are still not final.
     r.LinkerRedefined = sym->scriptDefined;
   }
-  checkError(ctx.e, ltoObj->add(std::move(f.obj), resols));
+
+  bool isDtlto = !ctx.dtltoCfg.DbsKind.empty();
+  if (isDtlto)
+    ctx.dtltoCfg.addInput(f.obj.get());
+
+  checkError(ctx.e, ltoObj->add(std::move(f.obj), resols, /*KeepObj=*/isDtlto));
 }
 
 // If LazyObjFile has not been added to link, emit empty index files.
@@ -327,15 +333,20 @@ SmallVector<std::unique_ptr<InputFile>, 0> BitcodeCompiler::compile() {
                                filenames[task] = moduleName.str();
                              }));
 
-  if (!ctx.bitcodeFiles.empty())
-    checkError(ctx.e, ltoObj->run(
-                          [&](size_t task, const Twine &moduleName) {
-                            buf[task].first = moduleName.str();
-                            return std::make_unique<CachedFileStream>(
-                                std::make_unique<raw_svector_ostream>(
-                                    buf[task].second));
-                          },
-                          cache));
+  if (!ctx.bitcodeFiles.empty()) {
+    if (ctx.dtltoCfg.DbsKind.empty())
+      checkError(ctx.e, ltoObj->run(
+                            [&](size_t task, const Twine &moduleName) {
+                              buf[task].first = moduleName.str();
+                              return std::make_unique<CachedFileStream>(
+                                  std::make_unique<raw_svector_ostream>(
+                                      buf[task].second));
+                            },
+                            cache));
+    else
+      checkError(ctx.e,
+                 dtlto::codeGenELF(ctx.dtltoCfg, *ltoObj, buf, files, filenames));
+  }
 
   // Emit empty index files for non-indexed files but not in single-module mode.
   if (ctx.arg.thinLTOModulesToCompile.empty()) {

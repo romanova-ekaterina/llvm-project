@@ -21,6 +21,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/DTLTO/CodeGen.h"
 #include "llvm/IR/DiagnosticPrinter.h"
 #include "llvm/LTO/Config.h"
 #include "llvm/LTO/LTO.h"
@@ -167,7 +168,12 @@ void BitcodeCompiler::add(BitcodeFile &f) {
     // their values are still not final.
     r.LinkerRedefined = !sym->canInline;
   }
-  checkError(ltoObj->add(std::move(f.obj), resols));
+
+  bool isDtlto = !ctx.config.dtltoCfg.DbsKind.empty();
+  if (isDtlto)
+    ctx.config.dtltoCfg.addInput(f.obj.get());
+
+  checkError(ltoObj->add(std::move(f.obj), resols, /*KeepObj=*/isDtlto));
 }
 
 // Merge all the bitcode files we have seen, codegen the result
@@ -190,13 +196,17 @@ std::vector<InputFile *> BitcodeCompiler::compile() {
                                file_names[task] = moduleName.str();
                              }));
 
-  checkError(ltoObj->run(
-      [&](size_t task, const Twine &moduleName) {
-        buf[task].first = moduleName.str();
-        return std::make_unique<CachedFileStream>(
-            std::make_unique<raw_svector_ostream>(buf[task].second));
-      },
-      cache));
+  if (ctx.config.dtltoCfg.DbsKind.empty())
+    checkError(ltoObj->run(
+        [&](size_t task, const Twine &moduleName) {
+          buf[task].first = moduleName.str();
+          return std::make_unique<CachedFileStream>(
+              std::make_unique<raw_svector_ostream>(buf[task].second));
+        },
+        cache));
+  else
+    checkError(
+        dtlto::codeGenCOFF(ctx.config.dtltoCfg, *ltoObj, buf, files, file_names));
 
   // Emit empty index files for non-indexed files
   for (StringRef s : thinIndices) {

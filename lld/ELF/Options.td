@@ -701,6 +701,10 @@ def thinlto_prefix_replace_eq: JJ<"thinlto-prefix-replace=">;
 def thinlto_single_module_eq: JJ<"thinlto-single-module=">,
   HelpText<"Specify a single module to compile in ThinLTO mode, for debugging only">;
 
+def thinlto_distribute_eq: J<"thinlto-distribute=">,
+  HelpText<"DBS kind [local, sndbs, icecream, distcc, fastbuild, goma, make, "
+           "ninja, incredibuild]">;
+
 defm fat_lto_objects: BB<"fat-lto-objects",
     "Use the .llvm.lto section, which contains LLVM bitcode, in fat LTO object files to perform LTO.",
     "Ignore the .llvm.lto section in relocatable object files (default).">;
